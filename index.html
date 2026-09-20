@@ -1,0 +1,770 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Opname Scan</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#12203A; --ink2:#54607A; --paper:#F2F3EE; --card:#fff; --line:#D9DCD2;
+  --tag:#FFD23F; --tagink:#3A2E00; --ok:#17734F; --bad:#B3341F;
+  --f:'Archivo',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+}
+*,*::before,*::after{box-sizing:border-box}
+html,body{margin:0}
+body{font:16px/1.45 var(--f);background:var(--paper);color:var(--ink);padding-bottom:calc(84px + env(safe-area-inset-bottom,0px));min-height:100%}
+button,input,select{font:inherit;color:inherit}
+:focus-visible{outline:3px solid #2F6BFF;outline-offset:2px}
+
+.top{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px;padding-top:calc(14px + env(safe-area-inset-top,0px));background:var(--ink);color:#fff}
+.top h1{margin:0;font-size:1.3rem;font-weight:800;font-stretch:120%;letter-spacing:.01em}
+.chip{border:0;background:var(--tag);color:var(--tagink);font-weight:700;font-size:.8rem;padding:6px 12px;border-radius:999px;cursor:pointer}
+
+main{max-width:640px;margin:0 auto;padding:14px}
+.tab{display:none}
+.tab.on{display:block}
+h2{font-size:1.05rem;margin:0 0 8px;font-weight:800}
+p{margin:0 0 8px}
+.muted{color:var(--ink2);font-size:.9rem}
+
+.btn{border:2px solid var(--ink);background:#fff;color:var(--ink);padding:9px 14px;border-radius:8px;font-weight:700;cursor:pointer;min-height:44px;display:inline-flex;align-items:center;justify-content:center;text-align:center}
+.btn.pri{background:var(--ink);color:#fff}
+.btn.tag{background:var(--tag);border-color:var(--tag);color:var(--tagink)}
+.btn.bad{border-color:var(--bad);color:var(--bad)}
+.btn:disabled{opacity:.5;cursor:default}
+.row-btns{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.row-btns .grow{flex:1}
+
+.in{width:100%;min-height:44px;padding:10px 12px;border:2px solid var(--line);border-radius:8px;background:#fff}
+.in:focus{border-color:var(--ink)}
+.field{display:block;margin-bottom:10px;font-weight:600;font-size:.9rem}
+.field .in{margin-top:4px;font-weight:400;font-size:1rem}
+
+/* Kamera */
+.cam{position:relative;background:#0E1526;border-radius:12px;overflow:hidden;min-height:230px}
+#reader{width:100%;border:0!important}
+#reader video{width:100%!important;height:auto!important;display:block}
+.cam-off{position:absolute;inset:0;display:grid;place-content:center;text-align:center;color:#C9D0E0;padding:24px;gap:4px}
+.cam-off b{font-size:1.15rem;color:#fff}
+.cam.live .cam-off{display:none}
+.cam-ctrl{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;align-items:center}
+.cam-ctrl select{flex:1;min-width:140px;min-height:44px;border:2px solid var(--line);border-radius:8px;padding:0 8px;background:#fff}
+#zoomWrap{display:flex;align-items:center;gap:10px;margin-top:8px;font-size:.85rem;font-weight:600}
+#zoomWrap input{flex:1}
+
+.find{display:flex;gap:8px;margin-top:14px}
+.find .in{flex:1}
+#results{list-style:none;margin:8px 0 0;padding:0;background:#fff;border:2px solid var(--line);border-radius:8px;overflow:hidden}
+#results:empty{display:none}
+#results button,.rowlist .pick{display:block;width:100%;text-align:left;border:0;border-bottom:1px solid var(--line);background:none;padding:10px 12px;cursor:pointer}
+#results li:last-child button{border-bottom:0}
+#results small{display:block;color:var(--ink2);font-variant-numeric:tabular-nums}
+
+/* Label rak: kartu hasil scan */
+.label{display:flex;background:#fff;border:2px solid var(--ink);border-radius:6px;overflow:hidden;margin-top:12px}
+.label::before{content:"";flex:0 0 14px;background:var(--tag);border-right:2px solid var(--ink)}
+.label.unk::before{background:var(--bad)}
+.label-body{padding:12px 14px;flex:1;min-width:0}
+.label-desc{margin:0 0 6px;font-size:1.55rem;line-height:1.12;font-weight:800;font-stretch:78%;overflow-wrap:anywhere}
+.label-line{margin:0 0 4px;color:var(--ink2);font-size:.9rem;font-variant-numeric:tabular-nums}
+.label .stepper{margin-top:8px}
+
+.stepper{display:inline-flex;align-items:stretch;border:2px solid var(--ink);border-radius:8px;overflow:hidden;background:#fff}
+.stepper button{width:42px;border:0;background:var(--paper);font-weight:800;font-size:1.3rem;cursor:pointer}
+.stepper input{width:62px;text-align:center;border:0;font-weight:800;font-size:1.15rem;font-variant-numeric:tabular-nums;-moz-appearance:textfield;background:#fff}
+.stepper input::-webkit-outer-spin-button,.stepper input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+.stepper.big button{width:56px;height:52px}
+
+/* Daftar */
+.sum{display:flex;gap:18px;align-items:baseline;margin-bottom:10px}
+.sum b{font-size:1.6rem;font-weight:800;font-stretch:90%;font-variant-numeric:tabular-nums}
+.rowlist{list-style:none;margin:10px 0 0;padding:0;background:#fff;border:2px solid var(--line);border-radius:8px}
+.rowlist li{display:flex;gap:10px;align-items:center;padding:10px 12px;border-bottom:1px solid var(--line)}
+.rowlist li:last-child{border-bottom:0}
+.rowlist .info{flex:1;min-width:0}
+.rowlist .info b{display:block;overflow-wrap:anywhere;line-height:1.25}
+.rowlist .info small{color:var(--ink2);font-variant-numeric:tabular-nums}
+.tagm{display:inline-block;background:var(--tag);color:var(--tagink);font-size:.7rem;font-weight:700;border-radius:4px;padding:0 6px;margin-left:6px}
+.del{border:0;background:none;color:var(--bad);font-weight:700;cursor:pointer;padding:8px;min-height:44px}
+.empty{padding:22px 12px;text-align:center;color:var(--ink2)}
+
+.panel{background:#fff;border:2px solid var(--line);border-radius:10px;padding:14px;margin-bottom:12px}
+.chk{display:flex;gap:8px;align-items:center;margin-top:8px;font-size:.9rem}
+.chk input{width:20px;height:20px}
+
+/* Navigasi bawah */
+nav{position:fixed;left:0;right:0;bottom:0;display:grid;grid-template-columns:repeat(4,1fr);background:#fff;border-top:2px solid var(--ink);padding-bottom:env(safe-area-inset-bottom,0px);z-index:5}
+nav button{border:0;background:none;padding:10px 4px 8px;display:grid;justify-items:center;gap:2px;font-size:.75rem;font-weight:600;color:var(--ink2);border-top:4px solid transparent;margin-top:-2px;cursor:pointer}
+nav button.on{color:var(--ink);border-top-color:var(--tag)}
+nav svg{width:24px;height:24px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.badge{font-style:normal;background:var(--ink);color:#fff;border-radius:999px;padding:0 6px;margin-left:4px;font-size:.7rem}
+
+#toast{position:fixed;left:50%;bottom:calc(92px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:#fff;padding:10px 16px;border-radius:8px;font-weight:600;max-width:90%;text-align:center;opacity:0;pointer-events:none;transition:opacity .15s;z-index:9}
+#toast.show{opacity:1}
+#toast.bad{background:var(--bad)}
+#toast.ok{background:var(--ok)}
+@media (prefers-reduced-motion:reduce){#toast{transition:none}}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <h1>Opname Scan</h1>
+  <button class="chip" id="chip" type="button">Master kosong</button>
+</header>
+
+<main>
+  <!-- SCAN -->
+  <section class="tab on" id="tab-scan">
+    <div class="cam" id="cam">
+      <div id="reader"></div>
+      <div class="cam-off"><b>Kamera mati</b><span>Tekan “Nyalakan kamera” untuk mulai scan.</span></div>
+    </div>
+    <div class="cam-ctrl">
+      <button class="btn tag grow" id="btnCam" type="button">Nyalakan kamera</button>
+      <button class="btn" id="btnTorch" type="button" hidden>Senter</button>
+      <select id="lens" aria-label="Pilih lensa kamera" hidden></select>
+    </div>
+    <div id="zoomWrap" hidden><span>Zoom</span><input type="range" id="zoom" aria-label="Zoom kamera"></div>
+
+    <div class="find">
+      <input class="in" id="q" type="search" inputmode="search" autocomplete="off" placeholder="Ketik barcode atau nama barang" aria-label="Cari barcode atau nama barang">
+      <button class="btn pri" id="btnGo" type="button">Cari</button>
+    </div>
+    <ul id="results"></ul>
+    <div class="row-btns"><button class="btn" id="btnManual" type="button">Tambah produk manual</button></div>
+    <div id="card" aria-live="polite"></div>
+  </section>
+
+  <!-- DAFTAR -->
+  <section class="tab" id="tab-list">
+    <div class="sum"><div><b id="sumLines">0</b> <span class="muted">barang</span></div><div><b id="sumQty">0</b> <span class="muted">total qty</span></div></div>
+    <input class="in" id="fl" type="search" placeholder="Filter hasil scan" aria-label="Filter hasil scan">
+    <ul class="rowlist" id="list"></ul>
+    <div class="row-btns"><button class="btn bad" id="btnClearScans" type="button">Kosongkan hasil scan</button></div>
+  </section>
+
+  <!-- MASTER -->
+  <section class="tab" id="tab-master">
+    <div class="panel">
+      <h2>Data master produk</h2>
+      <p id="mStat" class="muted"></p>
+      <div class="row-btns">
+        <label class="btn pri" for="file">Unggah JSON / Excel</label>
+        <input type="file" id="file" accept=".json,.xlsx,.xls,.csv,.txt" hidden>
+      </div>
+      <p class="muted" style="margin-top:10px">File baru menggantikan master yang ada. Produk manual tidak ikut terhapus.</p>
+    </div>
+    <div class="panel">
+      <h2>Ambil dari GitHub</h2>
+      <label class="field">Link file JSON (repository publik)
+        <input class="in" id="gh" type="url" placeholder="https://raw.githubusercontent.com/user/repo/main/master.json">
+      </label>
+      <label class="chk"><input type="checkbox" id="ghAuto"> Ambil ulang otomatis setiap aplikasi dibuka</label>
+      <div class="row-btns"><button class="btn pri" id="btnGh" type="button">Muat dari GitHub</button></div>
+    </div>
+    <div class="panel">
+      <h2>Produk manual</h2>
+      <p id="xStat" class="muted"></p>
+      <div class="row-btns"><button class="btn" id="btnXjson" type="button">Unduh produk manual (JSON)</button></div>
+    </div>
+    <div class="panel">
+      <h2>Reset aplikasi</h2>
+      <p class="muted">Menghapus master, hasil scan, produk manual, dan pengaturan dari perangkat ini.</p>
+      <div class="row-btns"><button class="btn bad" id="btnReset" type="button">Reset ke setelan awal</button></div>
+    </div>
+  </section>
+
+  <!-- EKSPOR -->
+  <section class="tab" id="tab-export">
+    <div class="panel">
+      <h2>Hasil opname</h2>
+      <p id="eStat" class="muted"></p>
+      <label class="field">Nama sesi / lokasi (tampil di file)
+        <input class="in" id="sess" type="text" placeholder="Contoh: Rak Beras, Lantai 1">
+      </label>
+      <div class="row-btns">
+        <button class="btn pri grow" id="btnXlsx" type="button">Unduh Excel</button>
+        <button class="btn tag grow" id="btnPdf" type="button">Unduh PDF + barcode</button>
+      </div>
+      <p class="muted" style="margin-top:10px">PDF memuat deskripsi, gambar barcode, dan qty tiap barang. Barcode bisa dipindai alat stock opname dari layar atau hasil cetak.</p>
+    </div>
+  </section>
+</main>
+
+<nav id="nav">
+  <button type="button" data-tab="scan" class="on"><svg viewBox="0 0 24 24"><path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3M8 8v8M12 8v8M16 8v8"/></svg><span>Scan</span></button>
+  <button type="button" data-tab="list"><svg viewBox="0 0 24 24"><path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01"/></svg><span>Hasil<i class="badge" id="cnt">0</i></span></button>
+  <button type="button" data-tab="master"><svg viewBox="0 0 24 24"><ellipse cx="12" cy="6" rx="7" ry="3"/><path d="M5 6v6c0 1.7 3.1 3 7 3s7-1.3 7-3V6M5 12v6c0 1.7 3.1 3 7 3s7-1.3 7-3v-6"/></svg><span>Master</span></button>
+  <button type="button" data-tab="export"><svg viewBox="0 0 24 24"><path d="M12 4v11M7 11l5 5 5-5M5 20h14"/></svg><span>Ekspor</span></button>
+</nav>
+<div id="toast" role="status"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jsbarcode/3.11.6/JsBarcode.all.min.js"></script>
+<script>
+'use strict';
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmt = n => Number(n || 0).toLocaleString('id-ID');
+const nb = s => String(s ?? '').trim().replace(/\s+/g, '');
+const stripZ = s => s.replace(/^0+/, '');
+
+/* ---------- Penyimpanan (IndexedDB, cadangan: memori) ---------- */
+const DB = {
+  db: null, mem: {},
+  open() {
+    return new Promise(res => {
+      try {
+        const r = indexedDB.open('opname-scan', 1);
+        r.onupgradeneeded = () => r.result.createObjectStore('kv');
+        r.onsuccess = () => { this.db = r.result; res(); };
+        r.onerror = () => res();
+      } catch (e) { res(); }
+    });
+  },
+  get(k) {
+    if (!this.db) return Promise.resolve(this.mem[k]);
+    return new Promise(res => {
+      const q = this.db.transaction('kv').objectStore('kv').get(k);
+      q.onsuccess = () => res(q.result);
+      q.onerror = () => res(undefined);
+    });
+  },
+  set(k, v) {
+    if (!this.db) { this.mem[k] = v; return Promise.resolve(); }
+    return new Promise(res => {
+      const tx = this.db.transaction('kv', 'readwrite');
+      tx.objectStore('kv').put(v, k);
+      tx.oncomplete = res; tx.onerror = res;
+    });
+  },
+  clear() {
+    this.mem = {};
+    if (!this.db) return Promise.resolve();
+    return new Promise(res => {
+      const tx = this.db.transaction('kv', 'readwrite');
+      tx.objectStore('kv').clear();
+      tx.oncomplete = res; tx.onerror = res;
+    });
+  }
+};
+
+/* ---------- State ---------- */
+const S = { master: [], meta: null, extras: [], scans: [], settings: { gh: '', ghAuto: false, sess: '' } };
+let all = [], hay = [];
+const idx = { bc: new Map(), bcz: new Map(), plu: new Map() };
+let card = null;          // {type:'item',key} | {type:'unk',code}
+let scanLock = false;
+
+function buildIndex() {
+  all = S.master.concat(S.extras);
+  idx.bc = new Map(); idx.bcz = new Map(); idx.plu = new Map();
+  hay = new Array(all.length);
+  all.forEach((p, i) => {
+    const b = nb(p.barcode);
+    if (b) {
+      if (!idx.bc.has(b)) idx.bc.set(b, p);
+      const z = stripZ(b);
+      if (z && !idx.bcz.has(z)) idx.bcz.set(z, p);
+    }
+    if (p.plu && !idx.plu.has(p.plu)) idx.plu.set(p.plu, p);
+    hay[i] = (p.desc + ' ' + (p.sdesc || '') + ' ' + p.barcode + ' ' + p.plu).toLowerCase();
+  });
+}
+function findProduct(code) {
+  const c = nb(code);
+  if (!c) return null;
+  return idx.bc.get(c) || idx.bcz.get(stripZ(c)) || idx.plu.get(c) || null;
+}
+function search(q) {
+  const t = q.toLowerCase().split(/\s+/).filter(Boolean);
+  if (!t.length) return [];
+  const hit = [];
+  for (let i = 0; i < all.length && hit.length < 300; i++) {
+    const h = hay[i];
+    let ok = true;
+    for (const w of t) if (!h.includes(w)) { ok = false; break; }
+    if (ok) hit.push([i, all[i].desc.toLowerCase().startsWith(t[0]) ? 0 : 1]);
+  }
+  hit.sort((a, b) => a[1] - b[1]);
+  return hit.slice(0, 30).map(x => all[x[0]]);
+}
+
+const saveMaster = () => Promise.all([DB.set('master', S.master), DB.set('meta', S.meta)]);
+const saveExtras = () => DB.set('extras', S.extras);
+const saveSettings = () => DB.set('settings', S.settings);
+let saveT;
+const saveScans = () => { clearTimeout(saveT); saveT = setTimeout(() => DB.set('scans', S.scans), 250); };
+
+/* ---------- Umpan balik ---------- */
+function toast(msg, kind) {
+  const t = $('#toast');
+  t.textContent = msg; t.className = 'show ' + (kind || '');
+  clearTimeout(toast.t); toast.t = setTimeout(() => t.className = '', 2400);
+}
+let ac;
+function beep(ok = true) {
+  try {
+    ac = ac || new (window.AudioContext || window.webkitAudioContext)();
+    const o = ac.createOscillator(), g = ac.createGain();
+    o.frequency.value = ok ? 1200 : 300; g.gain.value = .08;
+    o.connect(g); g.connect(ac.destination);
+    o.start(); o.stop(ac.currentTime + (ok ? .09 : .25));
+  } catch (e) {}
+  if (navigator.vibrate) navigator.vibrate(ok ? 30 : [80, 40, 80]);
+}
+function download(blob, name) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = name;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+}
+const stamp = () => { const d = new Date(), p = n => String(n).padStart(2, '0'); return `${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}`; };
+
+/* ---------- Parsing master ---------- */
+function parseJsonText(t) {
+  t = t.trim().replace(/^\uFEFF/, '');
+  let data;
+  try { data = JSON.parse(t); }
+  catch (e) {
+    let w = t.replace(/,\s*$/, '');
+    if (!w.startsWith('[')) w = '[' + w + ']';
+    data = JSON.parse(w);
+  }
+  if (!Array.isArray(data)) {
+    const arr = Object.values(data).find(Array.isArray);
+    data = arr || [data];
+  }
+  return data;
+}
+function mapRow(r) {
+  const o = {};
+  for (const k in r) o[k.toLowerCase().trim()] = r[k];
+  const s = v => String(v ?? '').trim();
+  const barcode = s(o.barcode), plu = s(o.plu);
+  const desc = s(o.descp) || s(o.s_descp) || s(o.deskripsi) || s(o.nama);
+  if (!barcode && !plu) return null;
+  return { plu, desc: desc || '(tanpa nama)', sdesc: s(o.s_descp), barcode: barcode || plu, kat: s(o.kategori), sat: s(o.sat1), price: o.price1 ?? '' };
+}
+function setMaster(rows, name, source) {
+  S.master = rows;
+  S.meta = { name, source, at: Date.now() };
+  buildIndex(); saveMaster(); renderAll();
+}
+async function loadFile(file) {
+  try {
+    let rows;
+    const ext = file.name.split('.').pop().toLowerCase();
+    if (ext === 'json' || ext === 'txt') {
+      rows = parseJsonText(await file.text());
+    } else {
+      if (!window.XLSX) return toast('Library Excel belum termuat (perlu internet)', 'bad');
+      const wb = XLSX.read(await file.arrayBuffer(), { type: 'array' });
+      rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { defval: '', raw: false });
+    }
+    rows = rows.map(mapRow).filter(Boolean);
+    if (!rows.length) return toast('Tidak ada baris dengan kolom barcode/plu', 'bad');
+    setMaster(rows, file.name, 'File');
+    toast(`${fmt(rows.length)} produk dimuat`, 'ok');
+  } catch (e) {
+    console.error(e);
+    toast('File tidak terbaca: ' + (e.message || e), 'bad');
+  }
+}
+function ghRaw(u) {
+  u = u.trim();
+  const m = u.match(/^https:\/\/github\.com\/([^/]+)\/([^/]+)\/blob\/(.+)$/);
+  return m ? `https://raw.githubusercontent.com/${m[1]}/${m[2]}/${m[3]}` : u;
+}
+async function loadGh(silent) {
+  const url = ghRaw($('#gh').value);
+  if (!url) return silent || toast('Isi link file JSON dulu', 'bad');
+  S.settings.gh = $('#gh').value.trim(); S.settings.ghAuto = $('#ghAuto').checked; saveSettings();
+  try {
+    const r = await fetch(url, { cache: 'no-store' });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const rows = parseJsonText(await r.text()).map(mapRow).filter(Boolean);
+    if (!rows.length) throw new Error('data kosong');
+    setMaster(rows, url.split('/').pop(), 'GitHub');
+    if (!silent) toast(`${fmt(rows.length)} produk dimuat dari GitHub`, 'ok');
+  } catch (e) {
+    if (!silent) toast('Gagal ambil dari GitHub: ' + (e.message || e), 'bad');
+  }
+}
+
+/* ---------- Hasil scan ---------- */
+function addScan(code, product, delta = 1, manual = false) {
+  const barcode = nb(product ? product.barcode : code);
+  const key = barcode || (product && product.plu);
+  let it = S.scans.find(x => x.key === key);
+  if (!it) {
+    it = { key, barcode: barcode, plu: product ? product.plu : '', desc: product ? product.desc : '', qty: 0, manual: !!(manual || (product && product.manual)), ts: Date.now(), last: Date.now() };
+    S.scans.push(it);
+  }
+  it.qty = Math.max(0, it.qty + delta);
+  it.last = Date.now();
+  saveScans();
+  return it;
+}
+function handleCode(code) {
+  const c = nb(code);
+  if (!c) return;
+  const p = findProduct(c);
+  if (p) {
+    const it = addScan(c, p, 1);
+    card = { type: 'item', key: it.key };
+    beep(true);
+  } else {
+    card = { type: 'unk', code: c };
+    scanLock = true;
+    beep(false);
+  }
+  renderCard(); renderList();
+}
+function pickProduct(p) {
+  const it = addScan(p.barcode, p, 1);
+  card = { type: 'item', key: it.key };
+  $('#q').value = ''; $('#results').innerHTML = '';
+  renderCard(); renderList();
+}
+
+/* ---------- Render ---------- */
+function renderCard() {
+  const box = $('#card');
+  if (!card) { box.innerHTML = ''; return; }
+  if (card.type === 'item') {
+    const it = S.scans.find(x => x.key === card.key);
+    if (!it) { box.innerHTML = ''; return; }
+    box.innerHTML = `<article class="label" data-key="${esc(it.key)}"><div class="label-body">
+      <p class="label-desc">${esc(it.desc)}</p>
+      <p class="label-line">Barcode ${esc(it.barcode)}</p>
+      ${it.plu ? `<p class="label-line">PLU ${esc(it.plu)}</p>` : ''}
+      ${it.manual ? '<p class="label-line">Produk manual</p>' : ''}
+      <div class="stepper big"><button type="button" data-act="dec" aria-label="Kurangi">−</button><input type="number" inputmode="numeric" min="0" value="${it.qty}" data-act="set" aria-label="Jumlah"><button type="button" data-act="inc" aria-label="Tambah">+</button></div>
+    </div></article>`;
+  } else {
+    const known = card.code ? 'Barcode belum ada di master' : 'Produk manual';
+    box.innerHTML = `<article class="label unk"><div class="label-body">
+      <p class="label-desc">${known}</p>
+      <label class="field">Barcode<input class="in" id="unkCode" inputmode="numeric" value="${esc(card.code || '')}"></label>
+      <label class="field">Deskripsi produk<input class="in" id="unkDesc" placeholder="Nama produk"></label>
+      <label class="field">Jumlah<input class="in" id="unkQty" type="number" inputmode="numeric" min="0" value="1"></label>
+      <div class="row-btns"><button class="btn pri" type="button" data-act="unkSave">Simpan produk manual</button><button class="btn" type="button" data-act="unkCancel">Lewati</button></div>
+    </div></article>`;
+    setTimeout(() => { const d = $('#unkDesc'); if (d) d.focus(); }, 30);
+  }
+}
+function renderList() {
+  const f = $('#fl').value.toLowerCase().trim();
+  const src = S.scans.slice().sort((a, b) => b.last - a.last).filter(x => !f || (x.desc + ' ' + x.barcode + ' ' + x.plu).toLowerCase().includes(f));
+  const total = S.scans.reduce((n, x) => n + x.qty, 0);
+  $('#sumLines').textContent = fmt(S.scans.length);
+  $('#sumQty').textContent = fmt(total);
+  $('#cnt').textContent = fmt(S.scans.length);
+  const shown = src.slice(0, 300);
+  $('#list').innerHTML = shown.length ? shown.map(x => `<li data-key="${esc(x.key)}">
+      <div class="info"><b>${esc(x.desc)}${x.manual ? '<span class="tagm">Manual</span>' : ''}</b><small>${esc(x.barcode)}</small></div>
+      <div class="stepper"><button type="button" data-act="dec" aria-label="Kurangi">−</button><input type="number" inputmode="numeric" min="0" value="${x.qty}" data-act="set" aria-label="Jumlah"><button type="button" data-act="inc" aria-label="Tambah">+</button></div>
+      <button class="del" type="button" data-act="del">Hapus</button></li>`).join('')
+    : `<li class="empty">${S.scans.length ? 'Tidak ada yang cocok dengan filter.' : 'Belum ada hasil scan. Mulai dari tab Scan.'}</li>`;
+  if (src.length > 300) $('#list').insertAdjacentHTML('beforeend', `<li class="empty">Menampilkan 300 dari ${fmt(src.length)}. Pakai filter untuk mempersempit.</li>`);
+  $('#eStat').textContent = S.scans.length ? `${fmt(S.scans.length)} barang, total qty ${fmt(total)}.` : 'Belum ada hasil scan untuk diekspor.';
+}
+function renderMaster() {
+  const n = S.master.length;
+  $('#chip').textContent = n ? `Master: ${fmt(n)} produk` : 'Master kosong';
+  $('#mStat').textContent = n
+    ? `${fmt(n)} produk dari ${S.meta.name} (${S.meta.source}), dimuat ${new Date(S.meta.at).toLocaleString('id-ID')}.`
+    : 'Belum ada master. Unggah file atau ambil dari GitHub.';
+  $('#xStat').textContent = S.extras.length ? `${fmt(S.extras.length)} produk manual tersimpan di perangkat ini.` : 'Belum ada produk manual.';
+  $('#btnXjson').disabled = !S.extras.length;
+  $('#gh').value = S.settings.gh || '';
+  $('#ghAuto').checked = !!S.settings.ghAuto;
+  $('#sess').value = S.settings.sess || '';
+}
+function renderAll() { renderMaster(); renderList(); renderCard(); }
+
+/* ---------- Aksi (delegasi) ---------- */
+function changeQty(key, fn) {
+  const it = S.scans.find(x => x.key === key);
+  if (!it) return;
+  it.qty = Math.max(0, Math.floor(fn(it.qty)) || 0);
+  it.last = Date.now();
+  saveScans(); renderCard(); renderList();
+}
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-act]');
+  if (!b || b.tagName === 'INPUT') return;
+  const act = b.dataset.act;
+  const key = b.closest('[data-key]')?.dataset.key;
+  if (act === 'inc') changeQty(key, q => q + 1);
+  else if (act === 'dec') changeQty(key, q => q - 1);
+  else if (act === 'del') {
+    S.scans = S.scans.filter(x => x.key !== key);
+    if (card && card.key === key) card = null;
+    saveScans(); renderCard(); renderList();
+  }
+  else if (act === 'unkCancel') { card = null; scanLock = false; renderCard(); }
+  else if (act === 'unkSave') saveManual();
+});
+document.addEventListener('change', e => {
+  const i = e.target;
+  if (i.dataset && i.dataset.act === 'set') {
+    const key = i.closest('[data-key]')?.dataset.key;
+    changeQty(key, () => parseInt(i.value, 10));
+  }
+});
+function saveManual() {
+  const code = nb($('#unkCode').value), desc = $('#unkDesc').value.trim(), qty = Math.max(0, parseInt($('#unkQty').value, 10) || 0);
+  if (!code) return toast('Barcode wajib diisi', 'bad');
+  if (!desc) return toast('Deskripsi wajib diisi', 'bad');
+  let p = findProduct(code);
+  if (!p) {
+    p = { plu: '', desc, sdesc: desc, barcode: code, kat: '', sat: '', price: '', manual: true };
+    S.extras.push(p); saveExtras(); buildIndex(); renderMaster();
+  } else toast('Barcode sudah ada di master, memakai data master');
+  const it = addScan(code, p, 0, !!p.manual);
+  it.qty += qty;
+  card = { type: 'item', key: it.key };
+  scanLock = false; beep(true);
+  renderCard(); renderList();
+}
+
+/* ---------- Pencarian / input manual ---------- */
+let qT;
+$('#q').addEventListener('input', () => {
+  clearTimeout(qT);
+  qT = setTimeout(() => {
+    const v = $('#q').value.trim();
+    const res = v.length >= 2 ? search(v) : [];
+    $('#results').innerHTML = res.map((p, i) => `<li><button type="button" data-i="${i}">${esc(p.desc)}<small>${esc(p.barcode)}</small></button></li>`).join('');
+    $('#results')._res = res;
+  }, 120);
+});
+$('#results').addEventListener('click', e => {
+  const b = e.target.closest('button[data-i]');
+  if (b) pickProduct($('#results')._res[+b.dataset.i]);
+});
+function submitQuery() {
+  const v = $('#q').value.trim();
+  if (!v) return;
+  if (findProduct(v)) { handleCode(v); $('#q').value = ''; $('#results').innerHTML = ''; return; }
+  if (/^\d{6,}$/.test(v)) { handleCode(v); $('#q').value = ''; $('#results').innerHTML = ''; return; }
+  const res = search(v);
+  if (res.length === 1) pickProduct(res[0]);
+  else if (!res.length) toast('Tidak ada produk yang cocok', 'bad');
+}
+$('#q').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); submitQuery(); } });
+$('#btnGo').addEventListener('click', submitQuery);
+$('#btnManual').addEventListener('click', () => { card = { type: 'unk', code: '' }; scanLock = true; renderCard(); });
+$('#fl').addEventListener('input', renderList);
+
+/* ---------- Kamera ---------- */
+let h5 = null, camBusy = false, torchOn = false, lastCode = '', lastAt = 0;
+const track = () => { const v = document.querySelector('#reader video'); return v && v.srcObject && v.srcObject.getVideoTracks()[0]; };
+
+function onDecoded(text) {
+  const now = Date.now();
+  if (scanLock) return;
+  if (text === lastCode && now - lastAt < 1500) { lastAt = now; return; }
+  lastCode = text; lastAt = now;
+  handleCode(text);
+}
+async function camStart(deviceId) {
+  if (camBusy) return;
+  if (!window.Html5Qrcode) return toast('Library scanner belum termuat (perlu internet)', 'bad');
+  camBusy = true; $('#btnCam').disabled = true;
+  try {
+    const F = Html5QrcodeSupportedFormats;
+    h5 = new Html5Qrcode('reader', {
+      formatsToSupport: [F.EAN_13, F.EAN_8, F.UPC_A, F.UPC_E, F.CODE_128, F.CODE_39, F.ITF],
+      useBarCodeDetectorIfSupported: true,
+      experimentalFeatures: { useBarCodeDetectorIfSupported: true },
+      verbose: false
+    });
+    const vc = deviceId
+      ? { deviceId: { exact: deviceId }, width: { ideal: 1920 }, height: { ideal: 1080 } }
+      : { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } };
+    await h5.start(
+      deviceId ? { deviceId: { exact: deviceId } } : { facingMode: 'environment' },
+      { fps: 12, videoConstraints: vc, qrbox: (w, h) => ({ width: Math.floor(w * 0.9), height: Math.floor(Math.min(h * 0.5, w * 0.42)) }) },
+      onDecoded, () => {}
+    );
+    $('#cam').classList.add('live');
+    $('#btnCam').textContent = 'Matikan kamera';
+    $('#btnCam').classList.remove('tag'); $('#btnCam').classList.add('pri');
+    setupCaps();
+    beep(true);
+  } catch (e) {
+    console.error(e);
+    h5 = null;
+    toast('Kamera gagal dinyalakan. Cek izin kamera dan pastikan halaman dibuka lewat HTTPS.', 'bad');
+  }
+  camBusy = false; $('#btnCam').disabled = false;
+}
+async function camStop() {
+  if (!h5) return;
+  camBusy = true;
+  try { await h5.stop(); } catch (e) {}
+  try { h5.clear(); } catch (e) {}
+  h5 = null; torchOn = false;
+  $('#cam').classList.remove('live');
+  $('#btnCam').textContent = 'Nyalakan kamera';
+  $('#btnCam').classList.add('tag'); $('#btnCam').classList.remove('pri');
+  $('#btnTorch').hidden = true; $('#zoomWrap').hidden = true; $('#lens').hidden = true;
+  camBusy = false;
+}
+function setupCaps() {
+  const tr = track();
+  if (!tr) return;
+  const caps = tr.getCapabilities ? tr.getCapabilities() : {};
+  if (caps.focusMode && caps.focusMode.includes('continuous')) tr.applyConstraints({ advanced: [{ focusMode: 'continuous' }] }).catch(() => {});
+  $('#btnTorch').hidden = !caps.torch;
+  $('#btnTorch').textContent = 'Senter';
+  const z = $('#zoom');
+  if (caps.zoom) {
+    z.min = caps.zoom.min; z.max = Math.min(caps.zoom.max, 6); z.step = caps.zoom.step || 0.1;
+    z.value = (tr.getSettings().zoom) || caps.zoom.min;
+    $('#zoomWrap').hidden = false;
+  } else $('#zoomWrap').hidden = true;
+  Html5Qrcode.getCameras().then(cs => {
+    const sel = $('#lens');
+    if (cs.length < 2) { sel.hidden = true; return; }
+    sel.innerHTML = cs.map((c, i) => `<option value="${esc(c.id)}">${esc(c.label || 'Kamera ' + (i + 1))}</option>`).join('');
+    const cur = tr.getSettings().deviceId;
+    if (cur) sel.value = cur;
+    sel.hidden = false;
+  }).catch(() => {});
+}
+$('#btnCam').addEventListener('click', () => h5 ? camStop() : camStart());
+$('#lens').addEventListener('change', async e => { const id = e.target.value; await camStop(); await camStart(id); });
+$('#zoom').addEventListener('input', e => { const tr = track(); if (tr) tr.applyConstraints({ advanced: [{ zoom: +e.target.value }] }).catch(() => {}); });
+$('#btnTorch').addEventListener('click', async () => {
+  const tr = track(); if (!tr) return;
+  torchOn = !torchOn;
+  try { await tr.applyConstraints({ advanced: [{ torch: torchOn }] }); $('#btnTorch').textContent = torchOn ? 'Senter: nyala' : 'Senter'; }
+  catch (e) { torchOn = false; toast('Senter tidak didukung di perangkat ini', 'bad'); }
+});
+document.addEventListener('visibilitychange', () => { if (document.hidden) camStop(); });
+
+/* ---------- Tab ---------- */
+function go(name) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('on', t.id === 'tab-' + name));
+  document.querySelectorAll('nav button').forEach(b => b.classList.toggle('on', b.dataset.tab === name));
+  if (name !== 'scan') camStop();
+  window.scrollTo(0, 0);
+}
+$('#nav').addEventListener('click', e => { const b = e.target.closest('button[data-tab]'); if (b) go(b.dataset.tab); });
+$('#chip').addEventListener('click', () => go('master'));
+
+/* ---------- Master / reset ---------- */
+$('#file').addEventListener('change', e => { const f = e.target.files[0]; if (f) loadFile(f); e.target.value = ''; });
+$('#btnGh').addEventListener('click', () => loadGh(false));
+$('#ghAuto').addEventListener('change', () => { S.settings.ghAuto = $('#ghAuto').checked; saveSettings(); });
+$('#btnXjson').addEventListener('click', () => download(new Blob([JSON.stringify(S.extras.map(p => ({ plu: p.plu, descp: p.desc, s_descp: p.desc, barcode: p.barcode })), null, 1)], { type: 'application/json' }), 'produk_manual_' + stamp() + '.json'));
+$('#btnClearScans').addEventListener('click', () => {
+  if (!S.scans.length || !confirm('Kosongkan semua hasil scan? Master tidak ikut terhapus.')) return;
+  S.scans = []; card = null; DB.set('scans', S.scans); renderCard(); renderList();
+});
+$('#btnReset').addEventListener('click', async () => {
+  if (!confirm('Reset ke setelan awal? Master, hasil scan, produk manual, dan pengaturan akan dihapus dari perangkat ini.')) return;
+  await camStop();
+  await DB.clear();
+  try { localStorage.clear(); } catch (e) {}
+  S.master = []; S.meta = null; S.extras = []; S.scans = []; S.settings = { gh: '', ghAuto: false, sess: '' };
+  card = null; scanLock = false;
+  buildIndex(); renderAll();
+  toast('Aplikasi kembali ke setelan awal', 'ok');
+});
+$('#sess').addEventListener('input', () => { S.settings.sess = $('#sess').value; saveSettings(); });
+
+/* ---------- Ekspor ---------- */
+function exportXlsx() {
+  if (!S.scans.length) return toast('Belum ada hasil scan', 'bad');
+  if (!window.XLSX) return toast('Library Excel belum termuat (perlu internet)', 'bad');
+  const rows = [['No', 'Barcode', 'PLU', 'Deskripsi', 'Qty', 'Sumber', 'Waktu scan']];
+  S.scans.slice().sort((a, b) => a.ts - b.ts).forEach((x, i) => rows.push([i + 1, x.barcode, x.plu, x.desc, x.qty, x.manual ? 'Manual' : 'Master', new Date(x.ts).toLocaleString('id-ID')]));
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  ws['!cols'] = [{ wch: 5 }, { wch: 18 }, { wch: 12 }, { wch: 46 }, { wch: 8 }, { wch: 9 }, { wch: 20 }];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Opname');
+  XLSX.writeFile(wb, 'opname_' + stamp() + '.xlsx');
+}
+function barcodeImg(code) {
+  const c = document.createElement('canvas');
+  const tries = /^\d{13}$/.test(code) ? ['EAN13', 'CODE128'] : /^\d{8}$/.test(code) ? ['EAN8', 'CODE128'] : /^\d{12}$/.test(code) ? ['UPC', 'CODE128'] : ['CODE128'];
+  for (const f of tries) {
+    try {
+      JsBarcode(c, code, { format: f, displayValue: true, fontSize: 18, height: 64, width: 2, margin: 8, background: '#ffffff' });
+      return { url: c.toDataURL('image/png'), w: c.width, h: c.height };
+    } catch (e) {}
+  }
+  return null;
+}
+async function exportPdf() {
+  if (!S.scans.length) return toast('Belum ada hasil scan', 'bad');
+  if (!window.jspdf || !window.JsBarcode) return toast('Library PDF belum termuat (perlu internet)', 'bad');
+  toast('Membuat PDF...');
+  const doc = new window.jspdf.jsPDF({ unit: 'mm', format: 'a4' });
+  const M = 12, W = 210, RH = 20;
+  const items = S.scans.slice().sort((a, b) => a.ts - b.ts);
+  const total = items.reduce((n, x) => n + x.qty, 0);
+  const sub = `${S.settings.sess || 'Tanpa nama sesi'}  |  ${new Date().toLocaleString('id-ID')}  |  ${items.length} barang, ${total} qty`;
+  let y = 0, page = 0;
+  const head = () => {
+    page++; if (page > 1) doc.addPage();
+    doc.setTextColor(20); doc.setFont('helvetica', 'bold'); doc.setFontSize(14); doc.text('Hasil Stock Opname', M, 16);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.text(sub, M, 21.5); doc.text('Hal. ' + page, W - M, 16, { align: 'right' });
+    doc.setFillColor(18, 32, 58); doc.rect(M, 26, W - 2 * M, 7, 'F');
+    doc.setTextColor(255); doc.setFont('helvetica', 'bold'); doc.setFontSize(9);
+    doc.text('No', M + 2, 30.6); doc.text('Deskripsi', M + 13, 30.6); doc.text('Barcode', M + 102, 30.6); doc.text('Qty', W - M - 2, 30.6, { align: 'right' });
+    doc.setTextColor(20); doc.setFont('helvetica', 'normal'); y = 33;
+  };
+  head();
+  for (let i = 0; i < items.length; i++) {
+    if (y + RH > 287) head();
+    const it = items[i];
+    doc.setFontSize(10); doc.setTextColor(20);
+    doc.text(String(i + 1), M + 2, y + 7);
+    const label = it.desc + (it.manual ? ' (manual)' : '');
+    doc.setFontSize(label.length > 60 ? 8.5 : 10);
+    doc.text(doc.splitTextToSize(label, 84).slice(0, 3), M + 13, y + 6.5);
+    const bc = barcodeImg(it.barcode);
+    if (bc) {
+      const h = 16, w = Math.min(62, h * bc.w / bc.h);
+      doc.addImage(bc.url, 'PNG', M + 102, y + 2, w, h);
+    } else { doc.setFontSize(8); doc.text(it.barcode, M + 102, y + 9); }
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(12);
+    doc.text(String(it.qty), W - M - 2, y + 10, { align: 'right' });
+    doc.setFont('helvetica', 'normal');
+    doc.setDrawColor(217, 220, 210); doc.line(M, y + RH, W - M, y + RH);
+    y += RH;
+    if (i % 25 === 24) await new Promise(r => setTimeout(r));
+  }
+  doc.save('opname_' + stamp() + '.pdf');
+  toast('PDF siap diunduh', 'ok');
+}
+$('#btnXlsx').addEventListener('click', exportXlsx);
+$('#btnPdf').addEventListener('click', exportPdf);
+
+/* ---------- Mulai ---------- */
+(async function init() {
+  await DB.open();
+  S.master = (await DB.get('master')) || [];
+  S.meta = (await DB.get('meta')) || null;
+  S.extras = (await DB.get('extras')) || [];
+  S.scans = (await DB.get('scans')) || [];
+  S.settings = Object.assign(S.settings, (await DB.get('settings')) || {});
+  if (S.master.length && !S.meta) S.meta = { name: 'master', source: 'File', at: Date.now() };
+  buildIndex(); renderAll();
+  if (S.settings.ghAuto && S.settings.gh) loadGh(true);
+})();
+</script>
+</body>
+</html>
