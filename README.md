@@ -1,0 +1,1 @@
+# lomag-scan-cloud
