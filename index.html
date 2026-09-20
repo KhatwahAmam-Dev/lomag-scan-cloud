@@ -422,8 +422,8 @@ function handleCode(code) {
     beep(true);
   } else {
     card = { type: 'unk', code: c };
-    scanLock = true;
     beep(false);
+    toast('Barcode ' + c + ' belum ada di master', 'bad');
   }
   renderCard(); renderList();
 }
@@ -457,7 +457,7 @@ function renderCard() {
       <label class="field">Jumlah<input class="in" id="unkQty" type="number" inputmode="numeric" min="0" value="1"></label>
       <div class="row-btns"><button class="btn pri" type="button" data-act="unkSave">Simpan produk manual</button><button class="btn" type="button" data-act="unkCancel">Lewati</button></div>
     </div></article>`;
-    setTimeout(() => { const d = $('#unkDesc'); if (d) d.focus(); }, 30);
+    if (!card.code) setTimeout(() => { const d = $('#unkDesc'); if (d) d.focus(); }, 30);
   }
 }
 function renderList() {
@@ -562,11 +562,14 @@ function submitQuery() {
 }
 $('#q').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); submitQuery(); } });
 $('#btnGo').addEventListener('click', submitQuery);
-$('#btnManual').addEventListener('click', () => { card = { type: 'unk', code: '' }; scanLock = true; renderCard(); });
+$('#btnManual').addEventListener('click', () => { card = { type: 'unk', code: '' }; scanLock = false; renderCard(); });
+// scan baru hanya diabaikan setelah pengguna mulai mengetik di form produk manual
+$('#card').addEventListener('input', e => { if (e.target.id && e.target.id.startsWith('unk')) scanLock = true; });
 $('#fl').addEventListener('input', renderList);
 
 /* ---------- Kamera ---------- */
 let h5 = null, camBusy = false, torchOn = false, lastCode = '', lastAt = 0;
+let curLens = null, watchT = null, lastT = -1, stall = 0, restarts = 0;
 const track = () => { const v = document.querySelector('#reader video'); return v && v.srcObject && v.srcObject.getVideoTracks()[0]; };
 
 function onDecoded(text) {
@@ -588,9 +591,10 @@ async function camStart(deviceId) {
       experimentalFeatures: { useBarCodeDetectorIfSupported: true },
       verbose: false
     });
+    curLens = deviceId || null;
     const vc = deviceId
-      ? { deviceId: { exact: deviceId }, width: { ideal: 1920 }, height: { ideal: 1080 } }
-      : { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } };
+      ? { deviceId: { exact: deviceId }, width: { ideal: 1280 }, height: { ideal: 720 } }
+      : { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } };
     await h5.start(
       deviceId ? { deviceId: { exact: deviceId } } : { facingMode: 'environment' },
       { fps: 12, videoConstraints: vc, qrbox: (w, h) => ({ width: Math.floor(w * 0.9), height: Math.floor(Math.min(h * 0.5, w * 0.42)) }) },
@@ -600,7 +604,7 @@ async function camStart(deviceId) {
     $('#btnCam').textContent = 'Matikan kamera';
     $('#btnCam').classList.remove('tag'); $('#btnCam').classList.add('pri');
     setupCaps();
-    beep(true);
+    startWatch();
   } catch (e) {
     console.error(e);
     h5 = null;
@@ -608,8 +612,30 @@ async function camStart(deviceId) {
   }
   camBusy = false; $('#btnCam').disabled = false;
 }
+function stopWatch() { clearInterval(watchT); watchT = null; }
+function startWatch() {
+  stopWatch(); lastT = -1; stall = 0;
+  watchT = setInterval(async () => {
+    if (!h5 || camBusy) return;
+    const v = document.querySelector('#reader video'), tr = track();
+    const dead = !v || !tr || tr.readyState === 'ended';
+    if (!dead) {
+      if (v.paused) v.play().catch(() => {});
+      if (v.currentTime === lastT) stall++; else { stall = 0; lastT = v.currentTime; }
+    }
+    if (dead || stall >= 2) {
+      if (restarts >= 3) { stopWatch(); toast('Kamera macet. Matikan lalu nyalakan lagi.', 'bad'); return; }
+      restarts++;
+      toast('Kamera macet, menyalakan ulang...');
+      const id = curLens;
+      await camStop();
+      await camStart(id);
+    }
+  }, 2000);
+}
 async function camStop() {
   if (!h5) return;
+  stopWatch();
   camBusy = true;
   try { await h5.stop(); } catch (e) {}
   try { h5.clear(); } catch (e) {}
@@ -624,7 +650,8 @@ function setupCaps() {
   const tr = track();
   if (!tr) return;
   const caps = tr.getCapabilities ? tr.getCapabilities() : {};
-  if (caps.focusMode && caps.focusMode.includes('continuous')) tr.applyConstraints({ advanced: [{ focusMode: 'continuous' }] }).catch(() => {});
+  const st = tr.getSettings ? tr.getSettings() : {};
+  if (caps.focusMode && caps.focusMode.includes('continuous') && st.focusMode && st.focusMode !== 'continuous') tr.applyConstraints({ advanced: [{ focusMode: 'continuous' }] }).catch(() => {});
   $('#btnTorch').hidden = !caps.torch;
   $('#btnTorch').textContent = 'Senter';
   const z = $('#zoom');
@@ -633,17 +660,20 @@ function setupCaps() {
     z.value = (tr.getSettings().zoom) || caps.zoom.min;
     $('#zoomWrap').hidden = false;
   } else $('#zoomWrap').hidden = true;
-  Html5Qrcode.getCameras().then(cs => {
-    const sel = $('#lens');
-    if (cs.length < 2) { sel.hidden = true; return; }
-    sel.innerHTML = cs.map((c, i) => `<option value="${esc(c.id)}">${esc(c.label || 'Kamera ' + (i + 1))}</option>`).join('');
-    const cur = tr.getSettings().deviceId;
-    if (cur) sel.value = cur;
-    sel.hidden = false;
-  }).catch(() => {});
+  // enumerateDevices tidak membuka stream baru (getCameras milik library membukanya dan bisa mematikan stream yang sedang jalan)
+  if (navigator.mediaDevices && navigator.mediaDevices.enumerateDevices) {
+    navigator.mediaDevices.enumerateDevices().then(ds => {
+      const cs = ds.filter(d => d.kind === 'videoinput');
+      const sel = $('#lens');
+      if (cs.length < 2) { sel.hidden = true; return; }
+      sel.innerHTML = cs.map((c, i) => `<option value="${esc(c.deviceId)}">${esc(c.label || 'Kamera ' + (i + 1))}</option>`).join('');
+      if (st.deviceId) sel.value = st.deviceId;
+      sel.hidden = false;
+    }).catch(() => {});
+  }
 }
-$('#btnCam').addEventListener('click', () => h5 ? camStop() : camStart());
-$('#lens').addEventListener('change', async e => { const id = e.target.value; await camStop(); await camStart(id); });
+$('#btnCam').addEventListener('click', () => { restarts = 0; return h5 ? camStop() : camStart(); });
+$('#lens').addEventListener('change', async e => { const id = e.target.value; restarts = 0; await camStop(); await camStart(id); });
 $('#zoom').addEventListener('input', e => { const tr = track(); if (tr) tr.applyConstraints({ advanced: [{ zoom: +e.target.value }] }).catch(() => {}); });
 $('#btnTorch').addEventListener('click', async () => {
   const tr = track(); if (!tr) return;
